@@ -1,0 +1,26 @@
+services:
+
+  postgres-vehiculos:
+    image: postgres:16
+    container_name: flota-postgres-vehiculos
+    environment:
+      POSTGRES_DB: vehiculos_db
+      POSTGRES_USER: flota
+      POSTGRES_PASSWORD: flota123
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_vehiculos_data:/var/lib/postgresql/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: flota-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: flota
+      RABBITMQ_DEFAULT_PASS: flota123
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+volumes:
+  postgres_vehiculos_data:
