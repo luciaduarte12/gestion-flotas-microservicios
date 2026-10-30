@@ -1,0 +1,14 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: vehiculos-service
+  datasource:
+    url: jdbc:postgresql://localhost:5433/vehiculos_db
+    username: flota
+    password: flota123
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
