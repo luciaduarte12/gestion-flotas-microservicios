@@ -1,6 +1,7 @@
 package com.flota.vehiculos.api;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.flota.vehiculos.api.dto.VehiculoRequest;
 import com.flota.vehiculos.api.dto.VehiculoResponse;
 import com.flota.vehiculos.domain.Vehiculo;
+import com.flota.vehiculos.messaging.VehiculoEventPublisher;
 import com.flota.vehiculos.persistence.VehiculoRepository;
 
 @RestController
@@ -24,9 +26,11 @@ import com.flota.vehiculos.persistence.VehiculoRepository;
 public class VehiculoController {
 
     private final VehiculoRepository repository;
+    private final VehiculoEventPublisher publisher;
 
-    public VehiculoController(VehiculoRepository repository) {
+    public VehiculoController(VehiculoRepository repository, VehiculoEventPublisher publisher) {
         this.repository = repository;
+        this.publisher = publisher;
     }
 
     @PostMapping
@@ -49,30 +53,32 @@ public class VehiculoController {
 
     @PostMapping("/{id}/iniciar-ruta")
     public VehiculoResponse iniciarRuta(@PathVariable Long id) {
-        Vehiculo vehiculo = buscar(id);
-        vehiculo.iniciarRuta();
-        return VehiculoResponse.desde(repository.save(vehiculo));
+        return transicionar(id, Vehiculo::iniciarRuta);
     }
 
     @PostMapping("/{id}/finalizar-ruta")
     public VehiculoResponse finalizarRuta(@PathVariable Long id) {
-        Vehiculo vehiculo = buscar(id);
-        vehiculo.finalizarRuta();
-        return VehiculoResponse.desde(repository.save(vehiculo));
+        return transicionar(id, Vehiculo::finalizarRuta);
     }
 
     @PostMapping("/{id}/enviar-a-mantenimiento")
     public VehiculoResponse enviarAMantenimiento(@PathVariable Long id) {
-        Vehiculo vehiculo = buscar(id);
-        vehiculo.enviarAMantenimiento();
-        return VehiculoResponse.desde(repository.save(vehiculo));
+        return transicionar(id, Vehiculo::enviarAMantenimiento);
     }
 
     @PostMapping("/{id}/finalizar-mantenimiento")
     public VehiculoResponse finalizarMantenimiento(@PathVariable Long id) {
+        return transicionar(id, Vehiculo::finalizarMantenimiento);
+    }
+
+    // Aplica la transición, guarda y publica el evento con el estado anterior y el nuevo
+    private VehiculoResponse transicionar(Long id, Consumer<Vehiculo> accion) {
         Vehiculo vehiculo = buscar(id);
-        vehiculo.finalizarMantenimiento();
-        return VehiculoResponse.desde(repository.save(vehiculo));
+        String estadoAnterior = vehiculo.getEstado().getNombre();
+        accion.accept(vehiculo);
+        Vehiculo guardado = repository.save(vehiculo);
+        publisher.publicarCambioDeEstado(guardado, estadoAnterior);
+        return VehiculoResponse.desde(guardado);
     }
 
     // Una transición inválida (por ejemplo, iniciar ruta estando en mantenimiento) devuelve 409
