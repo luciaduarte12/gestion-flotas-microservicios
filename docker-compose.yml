@@ -12,6 +12,18 @@ services:
     volumes:
       - postgres_vehiculos_data:/var/lib/postgresql/data
 
+  postgres-mantenimiento:
+    image: postgres:16
+    container_name: flota-postgres-mantenimiento
+    environment:
+      POSTGRES_DB: mantenimiento_db
+      POSTGRES_USER: flota
+      POSTGRES_PASSWORD: flota123
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_mantenimiento_data:/var/lib/postgresql/data
+
   rabbitmq:
     image: rabbitmq:3-management
     container_name: flota-rabbitmq
@@ -24,3 +36,4 @@ services:
 
 volumes:
   postgres_vehiculos_data:
+  postgres_mantenimiento_data:
