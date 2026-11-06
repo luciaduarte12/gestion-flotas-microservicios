@@ -48,6 +48,10 @@ public class Alerta {
         this.atendida = false;
     }
 
+    public void atender() {
+        this.atendida = true;
+    }
+
     public Long getId() {
         return id;
     }
