@@ -78,6 +78,8 @@ Cuando un vehículo cambia de estado, `vehiculos-service` publica un evento en e
 
 ### Alertas de mantenimiento preventivo
 
+![Alerta de service preventivo registrada por mantenimiento-service](docs/alerta.png)
+
 `mantenimiento-service` registra una alerta cuando el kilometraje del vehículo supera los 10.000 km. Se mantiene **una sola alerta abierta por vehículo**: mientras la anterior no se marque como atendida, los nuevos cambios de estado no generan duplicados.
 
 ```
