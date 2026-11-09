@@ -11,6 +11,11 @@ services:
       - "5433:5432"
     volumes:
       - postgres_vehiculos_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flota -d vehiculos_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   postgres-mantenimiento:
     image: postgres:16
@@ -23,6 +28,11 @@ services:
       - "5434:5432"
     volumes:
       - postgres_mantenimiento_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flota -d mantenimiento_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -33,6 +43,56 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  vehiculos-service:
+    build:
+      context: .
+      args:
+        MODULE: vehiculos-service
+    container_name: flota-vehiculos-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-vehiculos:5432/vehiculos_db
+      SPRING_RABBITMQ_HOST: rabbitmq
+    depends_on:
+      postgres-vehiculos:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  mantenimiento-service:
+    build:
+      context: .
+      args:
+        MODULE: mantenimiento-service
+    container_name: flota-mantenimiento-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-mantenimiento:5432/mantenimiento_db
+      SPRING_RABBITMQ_HOST: rabbitmq
+    depends_on:
+      postgres-mantenimiento:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  api-gateway:
+    build:
+      context: .
+      args:
+        MODULE: api-gateway
+    container_name: flota-api-gateway
+    environment:
+      VEHICULOS_URL: http://vehiculos-service:8081
+      MANTENIMIENTO_URL: http://mantenimiento-service:8082
+    ports:
+      - "8080:8080"
+    depends_on:
+      - vehiculos-service
+      - mantenimiento-service
 
 volumes:
   postgres_vehiculos_data:

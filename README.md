@@ -144,6 +144,8 @@ Todas las rutas se pueden consumir por el gateway (`http://localhost:8080`) o di
 | `POST` | `/vehiculos/{id}/finalizar-ruta` | `EN_RUTA` → `DISPONIBLE`. |
 | `POST` | `/vehiculos/{id}/enviar-a-mantenimiento` | `DISPONIBLE` → `EN_MANTENIMIENTO`. |
 | `POST` | `/vehiculos/{id}/finalizar-mantenimiento` | `EN_MANTENIMIENTO` → `DISPONIBLE`. |
+| `GET` | `/alertas` | Lista las alertas (filtro opcional `?atendida=false`). |
+| `POST` | `/alertas/{id}/atender` | Marca una alerta como atendida. |
 
 Una transición inválida responde `409 Conflict`; un vehículo inexistente, `404`.
 
@@ -165,8 +167,8 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8080/vehiculos/1/iniciar-ru
 - [x] Patrón State con persistencia por `AttributeConverter`
 - [x] Eventos de cambio de estado por RabbitMQ
 - [x] Tests unitarios del dominio
-- [ ] Persistir las alertas en `mantenimiento-service` y exponerlas por API
-- [ ] Ruta de `mantenimiento-service` en el gateway
+- [x] Persistir las alertas en `mantenimiento-service` y exponerlas por API
+- [x] Ruta de `mantenimiento-service` en el gateway
 - [ ] Tests de integración con Testcontainers
 - [ ] Dockerizar los tres servicios en el `docker-compose.yml`
 - [ ] Migraciones con Flyway en lugar de `ddl-auto: update`

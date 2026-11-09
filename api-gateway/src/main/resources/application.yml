@@ -10,10 +10,10 @@ spring:
         webflux:
           routes:
             - id: vehiculos-service
-              uri: http://localhost:8081
+              uri: ${VEHICULOS_URL:http://localhost:8081}
               predicates:
                 - Path=/vehiculos/**
             - id: mantenimiento-service
-              uri: http://localhost:8082
+              uri: ${MANTENIMIENTO_URL:http://localhost:8082}
               predicates:
                 - Path=/alertas/**
