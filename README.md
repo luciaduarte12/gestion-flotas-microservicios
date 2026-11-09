@@ -1,5 +1,7 @@
 # Sistema de Gestión de Flotas y Mantenimiento Preventivo
 
+![CI](https://github.com/luciaduarte12/gestion-flotas-microservicios/actions/workflows/ci.yml/badge.svg)
+
 Sistema de microservicios para monitorear vehículos de una flota y automatizar alertas de mantenimiento preventivo. Cada cambio de estado de un vehículo se publica como un evento y el servicio de mantenimiento reacciona a él, sin que los servicios se conozcan entre sí.
 
 > Proyecto de portfolio en desarrollo. El roadmap al final detalla lo que falta.
@@ -202,7 +204,7 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8080/alertas/1/atender
 - [x] Persistir las alertas en `mantenimiento-service` y exponerlas por API
 - [x] Ruta de `mantenimiento-service` en el gateway
 - [x] Dockerizar los tres servicios en el `docker-compose.yml`
-- [ ] GitHub Actions: correr los tests en cada `push`
+- [x] GitHub Actions: correr los tests en cada `push`
 - [ ] Tests de integración con Testcontainers
 - [ ] Migraciones con Flyway en lugar de `ddl-auto: update`
 - [ ] Descubrimiento de servicios y configuración centralizada (Spring Cloud)
