@@ -2,24 +2,28 @@
 
 Sistema de microservicios para monitorear vehículos de una flota y automatizar alertas de mantenimiento preventivo. Cada cambio de estado de un vehículo se publica como un evento y el servicio de mantenimiento reacciona a él, sin que los servicios se conozcan entre sí.
 
-> Proyecto de portfolio. Está en desarrollo: el roadmap al final detalla lo que falta.
+> Proyecto de portfolio en desarrollo. El roadmap al final detalla lo que falta.
 
 ## Arquitectura
 
 ```mermaid
 flowchart LR
     C[Cliente] --> GW[api-gateway<br/>:8080]
-    GW --> V[vehiculos-service<br/>:8081]
-    V --> DB[(PostgreSQL<br/>:5433)]
+    GW -- "/vehiculos/**" --> V[vehiculos-service<br/>:8081]
+    GW -- "/alertas/**" --> M[mantenimiento-service<br/>:8082]
+    V --> DBV[(PostgreSQL<br/>vehiculos_db)]
     V -- "evento vehiculo.estado.cambiado" --> MQ{{RabbitMQ<br/>exchange flota.vehiculos}}
-    MQ --> M[mantenimiento-service<br/>:8082]
+    MQ --> M
+    M --> DBM[(PostgreSQL<br/>mantenimiento_db)]
 ```
 
 | Módulo | Puerto | Responsabilidad |
 |---|---|---|
-| `api-gateway` | 8080 | Puerta de entrada. Enruta `/vehiculos/**` hacia `vehiculos-service`. |
-| `vehiculos-service` | 8081 | Gestiona los vehículos y su ciclo de vida. Persiste en PostgreSQL y publica eventos. |
-| `mantenimiento-service` | 8082 | Consume los eventos de cambio de estado y aplica reglas de mantenimiento preventivo. |
+| `api-gateway` | 8080 | Puerta de entrada. Enruta `/vehiculos/**` hacia `vehiculos-service` y `/alertas/**` hacia `mantenimiento-service`. |
+| `vehiculos-service` | 8081 | Gestiona los vehículos y su ciclo de vida. Persiste en su propia base PostgreSQL y publica eventos. |
+| `mantenimiento-service` | 8082 | Consume los eventos de cambio de estado, registra alertas de mantenimiento preventivo en su propia base y las expone por API. |
+
+Cada servicio tiene **su propia base de datos**: no comparten tablas y solo se comunican por eventos.
 
 ## Stack
 
@@ -28,7 +32,7 @@ flowchart LR
 - PostgreSQL 16 y Spring Data JPA / Hibernate
 - RabbitMQ 3 (Spring AMQP) para mensajería asíncrona
 - JUnit 5 y AssertJ
-- Docker Compose para la infraestructura local
+- Docker y Docker Compose
 
 ## Decisiones de diseño
 
@@ -49,7 +53,7 @@ Los estados no guardan datos, así que son singletons (`INSTANCIA`) y cada trans
 
 ### Persistencia del estado con `AttributeConverter`
 
-El campo `estado` de la entidad `Vehiculo` es un objeto, pero en la base se guarda como texto (`DISPONIBLE`, `EN_RUTA`, `EN_MANTENIMIENTO`). `EstadoVehiculoConverter` hace la conversión en las dos direcciones, y falla de forma explícita si encuentra un texto desconocido.
+El campo `estado` de la entidad `Vehiculo` es un objeto, pero en la base se guarda como texto (`DISPONIBLE`, `EN_RUTA`, `EN_MANTENIMIENTO`). `EstadoVehiculoConverter` hace la conversión en las dos direcciones y falla de forma explícita si encuentra un texto desconocido.
 
 ### Comunicación asíncrona por eventos
 
@@ -68,14 +72,15 @@ Cuando un vehículo cambia de estado, `vehiculos-service` publica un evento en e
 
 - El evento se publica **después** de guardar y solo si la transición fue válida, así que nunca se informa de un cambio que no ocurrió.
 - Cada servicio tiene **su propia copia** del evento, para que no compartan código y se puedan desplegar por separado.
+- Si `mantenimiento-service` no está disponible, los mensajes esperan en la cola y se consumen cuando vuelve.
 
-### Regla de mantenimiento preventivo
+### Alertas de mantenimiento preventivo
 
-`mantenimiento-service` registra una alerta cuando el kilometraje del vehículo supera los 10.000 km:
+`mantenimiento-service` registra una alerta cuando el kilometraje del vehículo supera los 10.000 km. Se mantiene **una sola alerta abierta por vehículo**: mientras la anterior no se marque como atendida, los nuevos cambios de estado no generan duplicados.
 
 ```
-Vehículo 1 (AB123CD): DISPONIBLE -> EN_RUTA a 15000 km
-ALERTA: el vehículo 1 (AB123CD) superó 10000 km y requiere service preventivo
+Vehículo 2 (EF456GH): DISPONIBLE -> EN_RUTA a 22000 km
+ALERTA registrada: El vehículo EF456GH superó 10000 km y requiere service preventivo
 ```
 
 ## Estructura del proyecto
@@ -83,7 +88,8 @@ ALERTA: el vehículo 1 (AB123CD) superó 10000 km y requiere service preventivo
 ```
 gestionFlotas/
 ├── pom.xml                      # POM padre
-├── docker-compose.yml           # PostgreSQL y RabbitMQ
+├── Dockerfile                   # imagen de cada servicio (ARG MODULE)
+├── docker-compose.yml           # bases, RabbitMQ y los tres servicios
 ├── api-gateway/
 ├── vehiculos-service/
 │   └── src/main/java/com/flota/vehiculos/
@@ -94,7 +100,10 @@ gestionFlotas/
 │       └── persistence/         # repositorio y converter
 └── mantenimiento-service/
     └── src/main/java/com/flota/mantenimiento/
-        └── messaging/           # consumo de eventos
+        ├── api/                 # controller y DTOs de alertas
+        ├── domain/              # entidad Alerta
+        ├── messaging/           # consumo de eventos
+        └── persistence/         # repositorio
 ```
 
 ## Cómo levantarlo
@@ -105,25 +114,35 @@ gestionFlotas/
 - Maven 3.9+
 - Docker Desktop
 
-### 1. Infraestructura
+### Con Docker (recomendado)
+
+Desde la raíz del repositorio:
 
 ```bash
-docker compose up -d
+mvn -DskipTests package
+docker compose up -d --build
 ```
 
-Levanta PostgreSQL (puerto 5433) y RabbitMQ (puerto 5672, panel en http://localhost:15672). Las credenciales de desarrollo son `flota` / `flota123`.
+Levanta las dos bases PostgreSQL, RabbitMQ y los tres servicios. Hace falta compilar antes con Maven porque el `Dockerfile` copia los JAR desde `target/`. Los servicios pueden tardar en arrancar, según la máquina. Se puede seguir el arranque con `docker compose logs -f api-gateway` hasta ver `Started ApiGatewayApplication`.
 
-### 2. Servicios
+Solo el gateway publica un puerto hacia afuera (`http://localhost:8080`). Para ver los mensajes, el panel de RabbitMQ está en http://localhost:15672.
 
-En tres terminales distintas, desde la raíz:
+Las credenciales de desarrollo son `flota` / `flota123`.
+
+### Sin Docker para los servicios
+
+Solo la infraestructura en Docker, y los servicios con Maven, cada uno en su terminal:
 
 ```bash
+docker compose up -d postgres-vehiculos postgres-mantenimiento rabbitmq
 mvn -pl vehiculos-service spring-boot:run
 mvn -pl mantenimiento-service spring-boot:run
 mvn -pl api-gateway spring-boot:run
 ```
 
-### 3. Tests
+Los `application.yml` apuntan a `localhost` por defecto (bases en los puertos 5433 y 5434), así que no hace falta configurar nada.
+
+### Tests
 
 ```bash
 mvn -pl vehiculos-service test
@@ -133,7 +152,9 @@ Son 22 tests unitarios (no necesitan Docker): las transiciones válidas e invál
 
 ## API
 
-Todas las rutas se pueden consumir por el gateway (`http://localhost:8080`) o directamente en `vehiculos-service` (`:8081`).
+Todas las rutas se consumen por el gateway (`http://localhost:8080`).
+
+### Vehículos
 
 | Método | Ruta | Descripción |
 |---|---|---|
@@ -144,10 +165,15 @@ Todas las rutas se pueden consumir por el gateway (`http://localhost:8080`) o di
 | `POST` | `/vehiculos/{id}/finalizar-ruta` | `EN_RUTA` → `DISPONIBLE`. |
 | `POST` | `/vehiculos/{id}/enviar-a-mantenimiento` | `DISPONIBLE` → `EN_MANTENIMIENTO`. |
 | `POST` | `/vehiculos/{id}/finalizar-mantenimiento` | `EN_MANTENIMIENTO` → `DISPONIBLE`. |
-| `GET` | `/alertas` | Lista las alertas (filtro opcional `?atendida=false`). |
-| `POST` | `/alertas/{id}/atender` | Marca una alerta como atendida. |
 
 Una transición inválida responde `409 Conflict`; un vehículo inexistente, `404`.
+
+### Alertas
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/alertas` | Lista las alertas, la más reciente primero (filtro opcional `?atendida=false`). |
+| `POST` | `/alertas/{id}/atender` | Marca una alerta como atendida. |
 
 ### Ejemplo
 
@@ -159,6 +185,12 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8080/vehiculos `
 
 # Iniciar ruta (publica un evento y dispara la alerta en mantenimiento-service)
 Invoke-RestMethod -Method Post -Uri http://localhost:8080/vehiculos/1/iniciar-ruta
+
+# Consultar las alertas pendientes
+Invoke-RestMethod -Uri "http://localhost:8080/alertas?atendida=false"
+
+# Marcar una alerta como atendida
+Invoke-RestMethod -Method Post -Uri http://localhost:8080/alertas/1/atender
 ```
 
 ## Roadmap
@@ -169,8 +201,9 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8080/vehiculos/1/iniciar-ru
 - [x] Tests unitarios del dominio
 - [x] Persistir las alertas en `mantenimiento-service` y exponerlas por API
 - [x] Ruta de `mantenimiento-service` en el gateway
+- [x] Dockerizar los tres servicios en el `docker-compose.yml`
+- [ ] GitHub Actions: correr los tests en cada `push`
 - [ ] Tests de integración con Testcontainers
-- [ ] Dockerizar los tres servicios en el `docker-compose.yml`
 - [ ] Migraciones con Flyway en lugar de `ddl-auto: update`
 - [ ] Descubrimiento de servicios y configuración centralizada (Spring Cloud)
 
