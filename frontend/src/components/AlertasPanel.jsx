@@ -1,44 +1,34 @@
-import { useCallback, useEffect, useState } from 'react'
-import { atenderAlerta, listarAlertasPendientes } from '../api'
+import { useState } from 'react'
+import { atenderAlerta } from '../api'
+import { IconAlert, IconCheck } from './Icons'
 
-export default function AlertasPanel() {
-  const [alertas, setAlertas] = useState([])
+export default function AlertasPanel({ alertas, onCambio }) {
   const [error, setError] = useState('')
-
-  const cargar = useCallback(async () => {
-    try {
-      setAlertas(await listarAlertasPendientes())
-      setError('')
-    } catch (e) {
-      setError(e.message)
-    }
-  }, [])
-
-  useEffect(() => {
-    cargar()
-    const intervalo = setInterval(cargar, 5000)
-    return () => clearInterval(intervalo)
-  }, [cargar])
 
   const atender = async (id) => {
     try {
       await atenderAlerta(id)
-      await cargar()
+      setError('')
+      await onCambio()
     } catch (e) {
       setError(e.message)
     }
   }
 
   return (
-    <section className="panel">
-      <h2>Alertas de mantenimiento <span className="contador">{alertas.length}</span></h2>
+    <section className="tarjeta">
+      <h2>
+        Alertas de mantenimiento
+        {alertas.length > 0 && <span className="contador">{alertas.length}</span>}
+      </h2>
 
       {error && <p className="error">{error}</p>}
 
       <ul className="alertas">
         {alertas.map((a) => (
           <li key={a.id}>
-            <div>
+            <span className="alerta-icono"><IconAlert /></span>
+            <div className="alerta-cuerpo">
               <strong>{a.patente}</strong>
               <p>{a.mensaje}</p>
               <small>
@@ -46,10 +36,17 @@ export default function AlertasPanel() {
                 {new Date(a.creadaEn).toLocaleString('es-AR')}
               </small>
             </div>
-            <button onClick={() => atender(a.id)}>Atender</button>
+            <button className="btn verde chico" onClick={() => atender(a.id)}>
+              Atender
+            </button>
           </li>
         ))}
-        {alertas.length === 0 && <li className="vacio">No hay alertas pendientes.</li>}
+        {alertas.length === 0 && (
+          <li className="sin-alertas">
+            <IconCheck width={28} height={28} />
+            <span>Todo al día: no hay alertas pendientes.</span>
+          </li>
+        )}
       </ul>
     </section>
   )
