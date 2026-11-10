@@ -82,7 +82,9 @@ export default function VehiculosPanel() {
                onChange={cambiarCampo} required />
         <input name="kilometraje" type="number" min="0" placeholder="Kilometraje"
                value={form.kilometraje} onChange={cambiarCampo} required />
-        <button type="submit">Crear vehículo</button>
+        <button type="submit" disabled={enviando}>
+          {enviando ? 'Creando...' : 'Crear vehículo'}
+        </button>
       </form>
 
       <table>
@@ -108,9 +110,9 @@ export default function VehiculosPanel() {
               </td>
               <td className="acciones">
                 {(ACCIONES[v.estado] ?? []).map((a) => (
-                    <button type="submit" disabled={enviando}>
-                    {enviando ? 'Creando...' : 'Crear vehículo'}
-                    </button>
+                  <button key={a.ruta} onClick={() => ejecutar(v.id, a.ruta)}>
+                    {a.etiqueta}
+                  </button>
                 ))}
               </td>
             </tr>
