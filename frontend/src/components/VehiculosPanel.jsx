@@ -25,6 +25,7 @@ export default function VehiculosPanel() {
   const [vehiculos, setVehiculos] = useState([])
   const [form, setForm] = useState(FORM_VACIO)
   const [error, setError] = useState('')
+  const [enviando, setEnviando] = useState(false)
 
   const cargar = useCallback(async () => {
     try {
@@ -44,12 +45,16 @@ export default function VehiculosPanel() {
 
   const crear = async (e) => {
     e.preventDefault()
+    if (enviando) return
+    setEnviando(true)
     try {
       await crearVehiculo({ ...form, kilometraje: Number(form.kilometraje) })
       setForm(FORM_VACIO)
       await cargar()
     } catch (err) {
       setError(err.message)
+    } finally {
+      setEnviando(false)
     }
   }
 
@@ -103,9 +108,9 @@ export default function VehiculosPanel() {
               </td>
               <td className="acciones">
                 {(ACCIONES[v.estado] ?? []).map((a) => (
-                  <button key={a.ruta} onClick={() => ejecutar(v.id, a.ruta)}>
-                    {a.etiqueta}
-                  </button>
+                    <button type="submit" disabled={enviando}>
+                    {enviando ? 'Creando...' : 'Crear vehículo'}
+                    </button>
                 ))}
               </td>
             </tr>

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import com.flota.vehiculos.api.dto.VehiculoRequest;
 import com.flota.vehiculos.api.dto.VehiculoResponse;
@@ -85,6 +86,13 @@ public class VehiculoController {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<String> transicionInvalida(IllegalStateException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+    }
+
+        // Una patente repetida viola la restricción de unicidad: se responde 409 con un mensaje claro
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<String> datoDuplicado(DataIntegrityViolationException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body("Ya existe un vehículo con esa patente");
     }
 
     private Vehiculo buscar(Long id) {

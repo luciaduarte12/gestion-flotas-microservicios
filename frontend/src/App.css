@@ -150,3 +150,8 @@ th, td {
 .alertas li button {
   align-self: center;
 }
+
+button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}

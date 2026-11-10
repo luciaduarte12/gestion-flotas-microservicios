@@ -10,6 +10,8 @@ public interface AlertaRepository extends JpaRepository<Alerta, Long> {
 
     boolean existsByVehiculoIdAndAtendidaFalse(Long vehiculoId);
 
+    List<Alerta> findByVehiculoIdAndAtendidaFalse(Long vehiculoId);
+
     List<Alerta> findAllByOrderByCreadaEnDesc();
 
     List<Alerta> findByAtendidaOrderByCreadaEnDesc(boolean atendida);

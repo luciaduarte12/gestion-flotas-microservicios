@@ -4,6 +4,8 @@
 
 Sistema de microservicios para monitorear vehículos de una flota y automatizar alertas de mantenimiento preventivo. Cada cambio de estado de un vehículo se publica como un evento y el servicio de mantenimiento reacciona a él, sin que los servicios se conozcan entre sí.
 
+![Pantalla principal del sistema](docs/frontend.png)
+
 > Proyecto de portfolio en desarrollo. El roadmap al final detalla lo que falta.
 
 ## Arquitectura
@@ -35,6 +37,7 @@ Cada servicio tiene **su propia base de datos**: no comparten tablas y solo se c
 - RabbitMQ 3 (Spring AMQP) para mensajería asíncrona
 - JUnit 5 y AssertJ
 - Docker y Docker Compose
+- React 19 y Vite para el frontend
 
 ## Decisiones de diseño
 
@@ -153,6 +156,18 @@ mvn -pl vehiculos-service test
 ```
 
 Son 22 tests unitarios (no necesitan Docker): las transiciones válidas e inválidas de cada estado, el ciclo de vida de `Vehiculo` y el converter.
+
+### Frontend
+
+Con el backend arriba, en otra terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Se abre en http://localhost:5173. Vite reenvía las llamadas `/vehiculos` y `/alertas` al gateway (puerto 8080), así que no hace falta configurar CORS.
 
 ## API
 
