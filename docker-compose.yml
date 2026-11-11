@@ -58,6 +58,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-vehiculos:5432/vehiculos_db
       SPRING_RABBITMQ_HOST: rabbitmq
+      JAVA_TOOL_OPTIONS: "-Xmx256m -XX:+UseSerialGC -XX:TieredStopAtLevel=1"
     depends_on:
       postgres-vehiculos:
         condition: service_healthy
@@ -73,6 +74,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-mantenimiento:5432/mantenimiento_db
       SPRING_RABBITMQ_HOST: rabbitmq
+      JAVA_TOOL_OPTIONS: "-Xmx256m -XX:+UseSerialGC -XX:TieredStopAtLevel=1"
     depends_on:
       postgres-mantenimiento:
         condition: service_healthy
@@ -88,6 +90,7 @@ services:
     environment:
       VEHICULOS_URL: http://vehiculos-service:8081
       MANTENIMIENTO_URL: http://mantenimiento-service:8082
+      JAVA_TOOL_OPTIONS: "-Xmx256m -XX:+UseSerialGC -XX:TieredStopAtLevel=1"
     ports:
       - "8080:8080"
     depends_on:
