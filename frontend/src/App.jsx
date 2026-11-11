@@ -10,6 +10,7 @@ export default function App() {
   const [vehiculos, setVehiculos] = useState([])
   const [alertas, setAlertas] = useState([])
   const [enLinea, setEnLinea] = useState(true)
+  const [cargando, setCargando] = useState(true)
 
   const cargar = useCallback(async () => {
     try {
@@ -17,6 +18,7 @@ export default function App() {
       setVehiculos(v)
       setAlertas(a)
       setEnLinea(true)
+      setCargando(false)
     } catch {
       setEnLinea(false)
     }
@@ -39,7 +41,7 @@ export default function App() {
           </div>
         </div>
         <span className={`conexion ${enLinea ? 'ok' : 'caida'}`}>
-          <i /> {enLinea ? 'Sistema en línea' : 'Sin conexión con el servidor'}
+          <i /> {enLinea ? 'Sistema en línea' : 'Conectando con el servidor...'}
         </span>
       </header>
       <div className="ruta" />
@@ -47,7 +49,7 @@ export default function App() {
       <main className="contenido">
         <StatsBar vehiculos={vehiculos} alertas={alertas} />
         <div className="paneles">
-          <VehiculosPanel vehiculos={vehiculos} onCambio={cargar} />
+          <VehiculosPanel vehiculos={vehiculos} cargando={cargando} onCambio={cargar} />
           <AlertasPanel alertas={alertas} onCambio={cargar} />
         </div>
       </main>

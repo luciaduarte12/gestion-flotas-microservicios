@@ -22,7 +22,7 @@ const ESTADOS = {
 
 const FORM_VACIO = { patente: '', marca: '', modelo: '', kilometraje: '' }
 
-export default function VehiculosPanel({ vehiculos, onCambio }) {
+export default function VehiculosPanel({ vehiculos, cargando, onCambio }) {
   const [form, setForm] = useState(FORM_VACIO)
   const [error, setError] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -125,7 +125,7 @@ export default function VehiculosPanel({ vehiculos, onCambio }) {
             })}
             {vehiculos.length === 0 && (
               <tr>
-                <td colSpan="5" className="vacio">No hay vehículos cargados.</td>
+                <td colSpan="5" className="vacio">{cargando ? 'Cargando vehículos...' : 'No hay vehículos cargados.'}</td>
               </tr>
             )}
           </tbody>
