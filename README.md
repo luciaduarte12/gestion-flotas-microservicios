@@ -1,8 +1,8 @@
-# Sistema de Gestión de Flotas y Mantenimiento Preventivo
+# FlotaControl: Sistema de Gestión de Flotas y Mantenimiento Preventivo
 
 ![CI](https://github.com/luciaduarte12/gestion-flotas-microservicios/actions/workflows/ci.yml/badge.svg)
 
-Sistema de microservicios para monitorear vehículos de una flota y automatizar alertas de mantenimiento preventivo. Cada cambio de estado de un vehículo se publica como un evento y el servicio de mantenimiento reacciona a él, sin que los servicios se conozcan entre sí.
+Sistema de microservicios para monitorear vehículos de una flota y automatizar alertas de mantenimiento preventivo. Cada cambio de estado de un vehículo se publica como un evento y el servicio de mantenimiento reacciona a él, sin que los servicios se conozcan entre sí. Incluye un panel web en React que muestra la flota y las alertas en tiempo real.
 
 ![Pantalla principal del sistema](docs/frontend.png)
 
@@ -12,7 +12,7 @@ Sistema de microservicios para monitorear vehículos de una flota y automatizar 
 
 ```mermaid
 flowchart LR
-    C[Cliente] --> GW[api-gateway<br/>:8080]
+    F[frontend React<br/>:5173] --> GW[api-gateway<br/>:8080]
     GW -- "/vehiculos/**" --> V[vehiculos-service<br/>:8081]
     GW -- "/alertas/**" --> M[mantenimiento-service<br/>:8082]
     V --> DBV[(PostgreSQL<br/>vehiculos_db)]
@@ -23,6 +23,7 @@ flowchart LR
 
 | Módulo | Puerto | Responsabilidad |
 |---|---|---|
+| `frontend` | 5173 | Panel web en React: flota, estados, acciones y alertas. En desarrollo, Vite reenvía las llamadas al gateway. |
 | `api-gateway` | 8080 | Puerta de entrada. Enruta `/vehiculos/**` hacia `vehiculos-service` y `/alertas/**` hacia `mantenimiento-service`. |
 | `vehiculos-service` | 8081 | Gestiona los vehículos y su ciclo de vida. Persiste en su propia base PostgreSQL y publica eventos. |
 | `mantenimiento-service` | 8082 | Consume los eventos de cambio de estado, registra alertas de mantenimiento preventivo en su propia base y las expone por API. |
@@ -35,9 +36,9 @@ Cada servicio tiene **su propia base de datos**: no comparten tablas y solo se c
 - Maven multimódulo (POM padre con dependencias centralizadas)
 - PostgreSQL 16 y Spring Data JPA / Hibernate
 - RabbitMQ 3 (Spring AMQP) para mensajería asíncrona
+- React y Vite para el frontend
 - JUnit 5 y AssertJ
-- Docker y Docker Compose
-- React 19 y Vite para el frontend
+- Docker, Docker Compose y GitHub Actions (CI)
 
 ## Decisiones de diseño
 
@@ -52,7 +53,7 @@ Un vehículo se comporta distinto según su estado. En lugar de condicionales (`
 | En Ruta | finalizar ruta | Disponible |
 | En Mantenimiento | finalizar mantenimiento | Disponible |
 
-Cualquier otra combinación lanza `IllegalStateException`, que la API traduce a un `409 Conflict`. Agregar un estado nuevo es agregar una clase, sin tocar `Vehiculo`.
+Cualquier otra combinación lanza `IllegalStateException`, que la API traduce a un `409 Conflict`. Agregar un estado nuevo es agregar una clase, sin tocar `Vehiculo`. El frontend refleja la misma regla: cada vehículo muestra solo los botones de las acciones válidas para su estado.
 
 Los estados no guardan datos, así que son singletons (`INSTANCIA`) y cada transición devuelve el estado siguiente en lugar de modificar a la entidad.
 
@@ -81,14 +82,23 @@ Cuando un vehículo cambia de estado, `vehiculos-service` publica un evento en e
 
 ### Alertas de mantenimiento preventivo
 
-![Alerta de service preventivo registrada por mantenimiento-service](docs/alerta.png)
+`mantenimiento-service` registra una alerta cuando un vehículo recorre **10.000 km o más desde su último service**.
 
-`mantenimiento-service` registra una alerta cuando el kilometraje del vehículo supera los 10.000 km. Se mantiene **una sola alerta abierta por vehículo**: mientras la anterior no se marque como atendida, los nuevos cambios de estado no generan duplicados.
+- Cuando un vehículo **sale de mantenimiento**, se guarda el kilometraje de ese service y se cierran sus alertas abiertas.
+- Se mantiene **una sola alerta abierta por vehículo**: mientras la anterior no se atienda, los nuevos cambios de estado no generan duplicados.
 
 ```
 Vehículo 2 (EF456GH): DISPONIBLE -> EN_RUTA a 22000 km
-ALERTA registrada: El vehículo EF456GH superó 10000 km y requiere service preventivo
+ALERTA registrada: El vehículo EF456GH superó 10000 km desde su último service y requiere service preventivo
 ```
+
+![Alerta de service preventivo registrada por mantenimiento-service](docs/alerta.png)
+
+### Manejo de errores
+
+- Una transición inválida responde `409 Conflict` con un mensaje claro.
+- Una patente repetida también responde `409 Conflict` (la base tiene una restricción de unicidad), en lugar de un error 500.
+- Un vehículo inexistente responde `404`.
 
 ## Estructura del proyecto
 
@@ -97,6 +107,12 @@ gestionFlotas/
 ├── pom.xml                      # POM padre
 ├── Dockerfile                   # imagen de cada servicio (ARG MODULE)
 ├── docker-compose.yml           # bases, RabbitMQ y los tres servicios
+├── docs/                        # capturas para el README
+├── .github/workflows/ci.yml     # tests en cada push
+├── frontend/                    # React + Vite
+│   └── src/
+│       ├── api.js               # llamadas al backend
+│       └── components/          # flota, alertas y resumen
 ├── api-gateway/
 ├── vehiculos-service/
 │   └── src/main/java/com/flota/vehiculos/
@@ -108,9 +124,9 @@ gestionFlotas/
 └── mantenimiento-service/
     └── src/main/java/com/flota/mantenimiento/
         ├── api/                 # controller y DTOs de alertas
-        ├── domain/              # entidad Alerta
+        ├── domain/              # entidades Alerta y UltimoService
         ├── messaging/           # consumo de eventos
-        └── persistence/         # repositorio
+        └── persistence/         # repositorios
 ```
 
 ## Cómo levantarlo
@@ -120,6 +136,7 @@ gestionFlotas/
 - JDK 17 o superior
 - Maven 3.9+
 - Docker Desktop
+- Node 20 o superior (solo para el frontend)
 
 ### Con Docker (recomendado)
 
@@ -130,11 +147,21 @@ mvn -DskipTests package
 docker compose up -d --build
 ```
 
-Levanta las dos bases PostgreSQL, RabbitMQ y los tres servicios. Hace falta compilar antes con Maven porque el `Dockerfile` copia los JAR desde `target/`. Los servicios pueden tardar en arrancar, según la máquina. Se puede seguir el arranque con `docker compose logs -f api-gateway` hasta ver `Started ApiGatewayApplication`.
+Levanta las dos bases PostgreSQL, RabbitMQ y los tres servicios. Hace falta compilar antes con Maven porque el `Dockerfile` copia los JAR desde `target/`. Los servicios pueden tardar en arrancar, según la máquina (cada JVM está limitada a 256 MB en el compose para equipos con poca memoria). Se puede seguir el arranque con `docker compose logs -f api-gateway` hasta ver `Started ApiGatewayApplication`.
 
-Solo el gateway publica un puerto hacia afuera (`http://localhost:8080`). Para ver los mensajes, el panel de RabbitMQ está en http://localhost:15672.
+Solo el gateway publica un puerto hacia afuera (`http://localhost:8080`). El panel de RabbitMQ está en http://localhost:15672. Las credenciales de desarrollo son `flota` / `flota123`.
 
-Las credenciales de desarrollo son `flota` / `flota123`.
+### Frontend
+
+Con el backend arriba, en otra terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Se abre en http://localhost:5173. Vite reenvía las llamadas `/vehiculos` y `/alertas` al gateway (puerto 8080), así que no hace falta configurar CORS. El encabezado indica si el sistema está en línea y la pantalla se actualiza sola cada pocos segundos.
 
 ### Sin Docker para los servicios
 
@@ -155,19 +182,7 @@ Los `application.yml` apuntan a `localhost` por defecto (bases en los puertos 54
 mvn -pl vehiculos-service test
 ```
 
-Son 22 tests unitarios (no necesitan Docker): las transiciones válidas e inválidas de cada estado, el ciclo de vida de `Vehiculo` y el converter.
-
-### Frontend
-
-Con el backend arriba, en otra terminal:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Se abre en http://localhost:5173. Vite reenvía las llamadas `/vehiculos` y `/alertas` al gateway (puerto 8080), así que no hace falta configurar CORS.
+Son 22 tests unitarios (no necesitan Docker): las transiciones válidas e inválidas de cada estado, el ciclo de vida de `Vehiculo` y el converter. Se ejecutan automáticamente en cada `push` con GitHub Actions.
 
 ## API
 
@@ -177,7 +192,7 @@ Todas las rutas se consumen por el gateway (`http://localhost:8080`).
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| `POST` | `/vehiculos` | Crea un vehículo (nace `DISPONIBLE`). |
+| `POST` | `/vehiculos` | Crea un vehículo (nace `DISPONIBLE`). Patente repetida: `409`. |
 | `GET` | `/vehiculos` | Lista los vehículos. |
 | `GET` | `/vehiculos/{id}` | Consulta un vehículo. |
 | `POST` | `/vehiculos/{id}/iniciar-ruta` | `DISPONIBLE` → `EN_RUTA`. |
@@ -212,6 +227,12 @@ Invoke-RestMethod -Uri "http://localhost:8080/alertas?atendida=false"
 Invoke-RestMethod -Method Post -Uri http://localhost:8080/alertas/1/atender
 ```
 
+## Limitaciones conocidas
+
+- El kilometraje se carga al crear el vehículo y no se puede actualizar, así que la regla de "10.000 km desde el último service" se ve en acción una sola vez por vehículo.
+- Las tablas se crean con `ddl-auto: update`, que es práctico para desarrollar pero no para producción.
+- El frontend se ejecuta en desarrollo con Vite y todavía no está dockerizado.
+
 ## Roadmap
 
 - [x] Maven multimódulo con tres servicios y gateway
@@ -222,11 +243,15 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8080/alertas/1/atender
 - [x] Ruta de `mantenimiento-service` en el gateway
 - [x] Dockerizar los tres servicios en el `docker-compose.yml`
 - [x] GitHub Actions: correr los tests en cada `push`
+- [x] Frontend en React con panel de flota y alertas
+- [ ] Actualizar el kilometraje de un vehículo (endpoint y evento) para recalcular alertas
+- [ ] Demo en línea del sistema
 - [ ] Tests de integración con Testcontainers
 - [ ] Migraciones con Flyway en lugar de `ddl-auto: update`
+- [ ] Dockerizar el frontend con nginx
 - [ ] Descubrimiento de servicios y configuración centralizada (Spring Cloud)
 
 ## Autora
 
 **Lucía Duarte**, estudiante de Ingeniería en Sistemas de Información (UTN FRC, Córdoba).
-[GitHub](https://github.com/luciaduarte12)
+[GitHub](https://github.com/luciaduarte12) · [LinkedIn](https://www.linkedin.com/in/lucia-duarte-712b3223a/)
